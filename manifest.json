@@ -1,0 +1,14 @@
+{
+  "name": "Eisenhower Matrix",
+  "id": "1613562891307840777",
+  "documentAccess": "dynamic-page",
+  "api": "1.0.0",
+  "widgetApi": "1.0.0",
+  "editorType": ["figjam"],
+  "containsWidget": true,
+  "main": "dist/code.js",
+  "permissions": ["currentuser", "activeusers"],
+  "networkAccess": {
+    "allowedDomains": ["https://*.figma.com", "https://*.googleusercontent.com"]
+  }
+}

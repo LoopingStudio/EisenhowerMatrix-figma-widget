@@ -1,0 +1,993 @@
+const { widget } = figma;
+const {
+  AutoLayout,
+  Text,
+  Input,
+  SVG,
+  Frame,
+  Ellipse,
+  useSyncedState,
+  useSyncedMap,
+  usePropertyMenu,
+  useWidgetId,
+} = widget;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface VotePosition {
+  col: number;
+  row: number;
+  userName: string;
+  userPhoto: string | null;
+  imageHash: string | null;
+}
+
+// ─── i18n ────────────────────────────────────────────────────────────────────
+
+type Lang = "fr" | "en" | "es" | "de" | "ja" | "pt";
+
+const TRANSLATIONS: Record<Lang, Record<string, string>> = {
+  fr: {
+    title: "Matrice d'Eisenhower",
+    placeholder: "Sujet à évaluer...",
+    noVotes: "Aucun vote",
+    vote: "vote",
+    votes: "votes",
+    result: "Résultat",
+    revealVotes: "Révéler les votes",
+    hideVotes: "Masquer les votes",
+    generateImage: "Générer l'image du résultat",
+    resetVotes: "Réinitialiser les votes",
+    selectReveal: 'Sélectionnez le widget puis "Révéler les votes"',
+    clickToVote: "Cliquez sur la matrice pour placer votre vote",
+    tooltipVote: "Cliquer pour placer votre vote",
+    notUrgent: "PAS URGENT",
+    urgent: "URGENT",
+    important: "IMPORTANT",
+    notImportant: "PAS IMPORTANT",
+    do: "FAIRE",
+    schedule: "PLANIFIER",
+    delegate: "DÉLÉGUER",
+    eliminate: "ÉLIMINER",
+    average: "Moyenne",
+    anonymous: "Anonyme",
+    resultFrame: "Résultat",
+  },
+  en: {
+    title: "Eisenhower Matrix",
+    placeholder: "Topic to evaluate...",
+    noVotes: "No votes",
+    vote: "vote",
+    votes: "votes",
+    result: "Result",
+    revealVotes: "Reveal votes",
+    hideVotes: "Hide votes",
+    generateImage: "Generate result image",
+    resetVotes: "Reset votes",
+    selectReveal: 'Select the widget then "Reveal votes"',
+    clickToVote: "Click on the matrix to place your vote",
+    tooltipVote: "Click to place your vote",
+    notUrgent: "NOT URGENT",
+    urgent: "URGENT",
+    important: "IMPORTANT",
+    notImportant: "NOT IMPORTANT",
+    do: "DO",
+    schedule: "SCHEDULE",
+    delegate: "DELEGATE",
+    eliminate: "ELIMINATE",
+    average: "Average",
+    anonymous: "Anonymous",
+    resultFrame: "Result",
+  },
+  es: {
+    title: "Matriz de Eisenhower",
+    placeholder: "Tema a evaluar...",
+    noVotes: "Sin votos",
+    vote: "voto",
+    votes: "votos",
+    result: "Resultado",
+    revealVotes: "Revelar votos",
+    hideVotes: "Ocultar votos",
+    generateImage: "Generar imagen del resultado",
+    resetVotes: "Reiniciar votos",
+    selectReveal: 'Selecciona el widget y luego "Revelar votos"',
+    clickToVote: "Haz clic en la matriz para votar",
+    tooltipVote: "Haz clic para votar",
+    notUrgent: "NO URGENTE",
+    urgent: "URGENTE",
+    important: "IMPORTANTE",
+    notImportant: "NO IMPORTANTE",
+    do: "HACER",
+    schedule: "PROGRAMAR",
+    delegate: "DELEGAR",
+    eliminate: "ELIMINAR",
+    average: "Promedio",
+    anonymous: "Anónimo",
+    resultFrame: "Resultado",
+  },
+  de: {
+    title: "Eisenhower-Matrix",
+    placeholder: "Thema bewerten...",
+    noVotes: "Keine Stimmen",
+    vote: "Stimme",
+    votes: "Stimmen",
+    result: "Ergebnis",
+    revealVotes: "Stimmen anzeigen",
+    hideVotes: "Stimmen verbergen",
+    generateImage: "Ergebnisbild erstellen",
+    resetVotes: "Stimmen zurücksetzen",
+    selectReveal: 'Widget auswählen, dann "Stimmen anzeigen"',
+    clickToVote: "Klicken Sie auf die Matrix, um abzustimmen",
+    tooltipVote: "Klicken zum Abstimmen",
+    notUrgent: "NICHT DRINGEND",
+    urgent: "DRINGEND",
+    important: "WICHTIG",
+    notImportant: "NICHT WICHTIG",
+    do: "ERLEDIGEN",
+    schedule: "TERMINIEREN",
+    delegate: "DELEGIEREN",
+    eliminate: "ELIMINIEREN",
+    average: "Durchschnitt",
+    anonymous: "Anonym",
+    resultFrame: "Ergebnis",
+  },
+  ja: {
+    title: "アイゼンハワー・マトリクス",
+    placeholder: "評価するトピック...",
+    noVotes: "投票なし",
+    vote: "票",
+    votes: "票",
+    result: "結果",
+    revealVotes: "投票を表示",
+    hideVotes: "投票を非表示",
+    generateImage: "結果画像を生成",
+    resetVotes: "投票をリセット",
+    selectReveal: 'ウィジェットを選択して「投票を表示」',
+    clickToVote: "マトリクスをクリックして投票",
+    tooltipVote: "クリックして投票",
+    notUrgent: "緊急でない",
+    urgent: "緊急",
+    important: "重要",
+    notImportant: "重要でない",
+    do: "すぐやる",
+    schedule: "計画する",
+    delegate: "人に任せる",
+    eliminate: "やらない",
+    average: "平均",
+    anonymous: "匿名",
+    resultFrame: "結果",
+  },
+  pt: {
+    title: "Matriz de Eisenhower",
+    placeholder: "Tópico a avaliar...",
+    noVotes: "Sem votos",
+    vote: "voto",
+    votes: "votos",
+    result: "Resultado",
+    revealVotes: "Revelar votos",
+    hideVotes: "Ocultar votos",
+    generateImage: "Gerar imagem do resultado",
+    resetVotes: "Redefinir votos",
+    selectReveal: 'Selecione o widget e depois "Revelar votos"',
+    clickToVote: "Clique na matriz para votar",
+    tooltipVote: "Clique para votar",
+    notUrgent: "NÃO URGENTE",
+    urgent: "URGENTE",
+    important: "IMPORTANTE",
+    notImportant: "NÃO IMPORTANTE",
+    do: "FAZER",
+    schedule: "AGENDAR",
+    delegate: "DELEGAR",
+    eliminate: "ELIMINAR",
+    average: "Média",
+    anonymous: "Anónimo",
+    resultFrame: "Resultado",
+  },
+};
+
+const LANG_OPTIONS: Array<{ option: Lang; label: string }> = [
+  { option: "fr", label: "Français" },
+  { option: "en", label: "English" },
+  { option: "es", label: "Español" },
+  { option: "de", label: "Deutsch" },
+  { option: "ja", label: "日本語" },
+  { option: "pt", label: "Português" },
+];
+
+function t(lang: Lang, key: string): string {
+  return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.en[key] || key;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const GRID_COLS = 12;
+const GRID_ROWS = 12;
+const CELL_SIZE = 40;
+const GRID_WIDTH = GRID_COLS * CELL_SIZE;
+const GRID_HEIGHT = GRID_ROWS * CELL_SIZE;
+const AXIS_LABEL_SIZE = 28;
+
+// Quadrant colors (top-left, top-right, bottom-left, bottom-right)
+const Q_COLORS = {
+  topLeft: { r: 0.86, g: 0.92, b: 0.99 },     // Pas urgent+Important — blue (Planifier)
+  topRight: { r: 0.99, g: 0.89, b: 0.88 },     // Urgent+Important — red (Faire)
+  bottomLeft: { r: 0.82, g: 0.98, b: 0.90 },   // Pas urgent+Pas important — green (Éliminer)
+  bottomRight: { r: 1.0, g: 0.95, b: 0.78 },   // Urgent+Pas important — yellow (Déléguer)
+};
+
+// Dot colors for different users (cycle through these)
+const DOT_COLORS = [
+  "#EF4444", "#3B82F6", "#F59E0B", "#10B981",
+  "#8B5CF6", "#EC4899", "#F97316", "#06B6D4",
+  "#84CC16", "#6366F1", "#E11D48", "#14B8A6",
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getCellColor(col: number, row: number): string {
+  // Blend colors based on position in the grid
+  const tx = col / (GRID_COLS - 1); // 0=left(urgent) to 1=right(not urgent)
+  const ty = row / (GRID_ROWS - 1); // 0=top(important) to 1=bottom(not important)
+
+  const tl = Q_COLORS.topLeft;
+  const tr = Q_COLORS.topRight;
+  const bl = Q_COLORS.bottomLeft;
+  const br = Q_COLORS.bottomRight;
+
+  // Bilinear interpolation
+  const r = tl.r * (1 - tx) * (1 - ty) + tr.r * tx * (1 - ty) + bl.r * (1 - tx) * ty + br.r * tx * ty;
+  const g = tl.g * (1 - tx) * (1 - ty) + tr.g * tx * (1 - ty) + bl.g * (1 - tx) * ty + br.g * tx * ty;
+  const b = tl.b * (1 - tx) * (1 - ty) + tr.b * tx * (1 - ty) + bl.b * (1 - tx) * ty + br.b * tx * ty;
+
+  const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
+}
+
+function getDotColor(index: number): string {
+  return DOT_COLORS[index % DOT_COLORS.length];
+}
+
+function hexToRgb(hex: string): RGB {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return { r, g, b };
+}
+
+function getCellColorRgb(col: number, row: number): RGB {
+  const tx = col / (GRID_COLS - 1);
+  const ty = row / (GRID_ROWS - 1);
+  const tl = Q_COLORS.topLeft;
+  const tr = Q_COLORS.topRight;
+  const bl = Q_COLORS.bottomLeft;
+  const br = Q_COLORS.bottomRight;
+  return {
+    r: tl.r * (1 - tx) * (1 - ty) + tr.r * tx * (1 - ty) + bl.r * (1 - tx) * ty + br.r * tx * ty,
+    g: tl.g * (1 - tx) * (1 - ty) + tr.g * tx * (1 - ty) + bl.g * (1 - tx) * ty + br.g * tx * ty,
+    b: tl.b * (1 - tx) * (1 - ty) + tr.b * tx * (1 - ty) + bl.b * (1 - tx) * ty + br.b * tx * ty,
+  };
+}
+
+// ─── Main Widget ─────────────────────────────────────────────────────────────
+
+function EisenhowerMatrix() {
+  const widgetId = useWidgetId();
+  const votesMap = useSyncedMap<VotePosition>("votes");
+  const [showVotes, setShowVotes] = useSyncedState<boolean>("showVotes", false);
+  const [topic, setTopic] = useSyncedState<string>("topic", "");
+  const [lang, setLang] = useSyncedState<Lang>("lang", "en");
+
+  const allVotes = votesMap.entries();
+  const voterCount = allVotes.length;
+
+  // Property menu
+  usePropertyMenu(
+    [
+      {
+        itemType: "dropdown",
+        propertyName: "lang",
+        tooltip: "Language",
+        selectedOption: lang,
+        options: LANG_OPTIONS,
+      },
+      {
+        itemType: "separator",
+      },
+      {
+        itemType: "toggle",
+        propertyName: "showVotes",
+        tooltip: showVotes ? t(lang, "hideVotes") : t(lang, "revealVotes"),
+        isToggled: showVotes,
+      },
+      {
+        itemType: "action",
+        propertyName: "generateImage",
+        tooltip: t(lang, "generateImage"),
+      },
+      {
+        itemType: "separator",
+      },
+      {
+        itemType: "action",
+        propertyName: "resetVotes",
+        tooltip: t(lang, "resetVotes"),
+      },
+    ],
+    ({ propertyName, propertyValue }) => {
+      if (propertyName === "lang") {
+        setLang(propertyValue as Lang);
+      } else if (propertyName === "showVotes") {
+        setShowVotes(!showVotes);
+      } else if (propertyName === "generateImage") {
+        return new Promise<void>((resolve) => {
+          generateResultImage().then(() => resolve());
+        });
+      } else if (propertyName === "resetVotes") {
+        for (const [key] of votesMap.entries()) {
+          votesMap.delete(key);
+        }
+      }
+    }
+  );
+
+  // Place vote handler — called from cell onClick
+  async function placeVote(col: number, row: number) {
+    const user = figma.currentUser;
+    const sessionId = user?.sessionId?.toString() || "anonymous";
+    const photoUrl = user?.photoUrl || null;
+
+    let imageHash: string | null = null;
+    if (photoUrl) {
+      try {
+        const image = await figma.createImageAsync(photoUrl);
+        imageHash = image.hash;
+      } catch (e) {
+        // fallback: no avatar
+      }
+    }
+
+    votesMap.set(sessionId, {
+      col,
+      row,
+      userName: user?.name || t(lang, "anonymous"),
+      userPhoto: photoUrl,
+      imageHash,
+    });
+  }
+
+  // Get votes at a specific cell
+  function getVotesAtCell(col: number, row: number): Array<{ key: string; vote: VotePosition; index: number }> {
+    const result: Array<{ key: string; vote: VotePosition; index: number }> = [];
+    let idx = 0;
+    for (const [key, vote] of allVotes) {
+      if (vote.col === col && vote.row === row) {
+        result.push({ key, vote, index: idx });
+      }
+      idx++;
+    }
+    return result;
+  }
+
+  // ─── Generate result image ──────────────────────────────────────────────
+
+  async function generateResultImage() {
+    const widgetNode = await figma.getNodeByIdAsync(widgetId) as WidgetNode;
+    if (!widgetNode || voterCount === 0) return;
+
+    await figma.loadFontAsync({ family: "Inter", style: "Bold" });
+    await figma.loadFontAsync({ family: "Inter", style: "Medium" });
+    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+
+    const IMG_SIZE = 400;
+    const MARGIN = 36;
+    const INNER = IMG_SIZE - MARGIN * 2;
+
+    const frame = figma.createFrame();
+    frame.name = topic ? `${t(lang, "resultFrame")} — ${topic}` : `${t(lang, "resultFrame")} ${t(lang, "title")}`;
+    frame.resize(IMG_SIZE, IMG_SIZE + 60);
+    frame.x = widgetNode.x + widgetNode.width + 80;
+    frame.y = widgetNode.y;
+    frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    frame.cornerRadius = 16;
+    frame.clipsContent = true;
+
+    // ── Title ──
+    const title = figma.createText();
+    title.fontName = { family: "Inter", style: "Bold" };
+    title.characters = topic || t(lang, "title");
+    title.fontSize = 14;
+    title.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    title.x = MARGIN;
+    title.y = 16;
+    frame.appendChild(title);
+
+    // Vote count
+    const subtitle = figma.createText();
+    subtitle.fontName = { family: "Inter", style: "Medium" };
+    subtitle.characters = `${voterCount} ${voterCount > 1 ? t(lang, "votes") : t(lang, "vote")}`;
+    subtitle.fontSize = 10;
+    subtitle.fills = [{ type: "SOLID", color: { r: 0.42, g: 0.45, b: 0.5 } }];
+    subtitle.x = MARGIN;
+    subtitle.y = 32;
+    frame.appendChild(subtitle);
+
+    // ── Quadrant backgrounds ──
+    const quadrants = [
+      { x: 0, y: 0, color: Q_COLORS.topLeft },
+      { x: INNER / 2, y: 0, color: Q_COLORS.topRight },
+      { x: 0, y: INNER / 2, color: Q_COLORS.bottomLeft },
+      { x: INNER / 2, y: INNER / 2, color: Q_COLORS.bottomRight },
+    ];
+
+    const gridOffsetY = 44;
+
+    for (const q of quadrants) {
+      const rect = figma.createRectangle();
+      rect.resize(INNER / 2, INNER / 2);
+      rect.x = MARGIN + q.x;
+      rect.y = gridOffsetY + MARGIN + q.y;
+      rect.fills = [{ type: "SOLID", color: q.color }];
+      frame.appendChild(rect);
+    }
+
+    // ── Cross separator ──
+    const vLine = figma.createRectangle();
+    vLine.resize(1, INNER);
+    vLine.x = MARGIN + INNER / 2;
+    vLine.y = gridOffsetY + MARGIN;
+    vLine.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+    vLine.opacity = 0.1;
+    frame.appendChild(vLine);
+
+    const hLine = figma.createRectangle();
+    hLine.resize(INNER, 1);
+    hLine.x = MARGIN;
+    hLine.y = gridOffsetY + MARGIN + INNER / 2;
+    hLine.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+    hLine.opacity = 0.1;
+    frame.appendChild(hLine);
+
+    // ── Vote dots (group by cell for offset) ──
+    const cellGroups: Record<string, Array<{ vote: VotePosition; idx: number }>> = {};
+    let idx = 0;
+    for (const [, vote] of allVotes) {
+      const cellKey = `${vote.col}:${vote.row}`;
+      if (!cellGroups[cellKey]) cellGroups[cellKey] = [];
+      cellGroups[cellKey].push({ vote, idx });
+      idx++;
+    }
+
+    for (const cellKey of Object.keys(cellGroups)) {
+      const group = cellGroups[cellKey];
+      const count = group.length;
+
+      for (let i = 0; i < count; i++) {
+        const { vote, idx: voteIdx } = group[i];
+        const vx = MARGIN + ((vote.col + 0.5) / GRID_COLS) * INNER;
+        const vy = gridOffsetY + MARGIN + ((vote.row + 0.5) / GRID_ROWS) * INNER;
+        const offset = count > 1 ? (i - (count - 1) / 2) * 10 : 0;
+        const dotSize = 22;
+        const dotColor = hexToRgb(getDotColor(voteIdx));
+
+        // Shadow
+        const shadow = figma.createEllipse();
+        shadow.resize(dotSize, dotSize);
+        shadow.x = vx - dotSize / 2 + offset;
+        shadow.y = vy - dotSize / 2 + 2;
+        shadow.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+        shadow.opacity = 0.15;
+        frame.appendChild(shadow);
+
+        // Dot with avatar or color+initials
+        const dot = figma.createEllipse();
+        dot.resize(dotSize, dotSize);
+        dot.x = vx - dotSize / 2 + offset;
+        dot.y = vy - dotSize / 2;
+
+        let hasAvatar = false;
+        if (vote.userPhoto) {
+          try {
+            const image = await figma.createImageAsync(vote.userPhoto);
+            dot.fills = [{ type: "IMAGE", imageHash: image.hash, scaleMode: "FILL" }];
+            hasAvatar = true;
+          } catch (e) {
+            dot.fills = [{ type: "SOLID", color: dotColor }];
+          }
+        } else {
+          dot.fills = [{ type: "SOLID", color: dotColor }];
+        }
+
+        dot.strokes = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+        dot.strokeWeight = 2;
+        dot.strokeAlign = "OUTSIDE";
+        frame.appendChild(dot);
+
+        if (!hasAvatar) {
+          const initials = figma.createText();
+          initials.fontName = { family: "Inter", style: "Bold" };
+          initials.characters = getInitials(vote.userName);
+          initials.fontSize = 8;
+          initials.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+          initials.textAlignHorizontal = "CENTER";
+          initials.textAlignVertical = "CENTER";
+          initials.resize(dotSize, dotSize);
+          initials.x = vx - dotSize / 2 + offset;
+          initials.y = vy - dotSize / 2;
+          frame.appendChild(initials);
+        }
+      }
+    }
+
+    // ── Average marker (crosshair) ──
+    let sumCol = 0;
+    let sumRow = 0;
+    for (const [, vote] of allVotes) {
+      sumCol += vote.col;
+      sumRow += vote.row;
+    }
+    const avgX = MARGIN + ((sumCol / voterCount + 0.5) / GRID_COLS) * INNER;
+    const avgY = gridOffsetY + MARGIN + ((sumRow / voterCount + 0.5) / GRID_ROWS) * INNER;
+
+    // Soft outer halo
+    const halo = figma.createEllipse();
+    const haloSize = 36;
+    halo.resize(haloSize, haloSize);
+    halo.x = avgX - haloSize / 2;
+    halo.y = avgY - haloSize / 2;
+    halo.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    halo.opacity = 0.06;
+    frame.appendChild(halo);
+
+    // Outer ring
+    const outerRing = figma.createEllipse();
+    const outerSize = 22;
+    outerRing.resize(outerSize, outerSize);
+    outerRing.x = avgX - outerSize / 2;
+    outerRing.y = avgY - outerSize / 2;
+    outerRing.fills = [];
+    outerRing.strokes = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    outerRing.strokeWeight = 1.5;
+    outerRing.opacity = 0.6;
+    frame.appendChild(outerRing);
+
+    // Inner ring
+    const innerRing = figma.createEllipse();
+    const innerSize = 12;
+    innerRing.resize(innerSize, innerSize);
+    innerRing.x = avgX - innerSize / 2;
+    innerRing.y = avgY - innerSize / 2;
+    innerRing.fills = [];
+    innerRing.strokes = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    innerRing.strokeWeight = 1;
+    innerRing.opacity = 0.4;
+    frame.appendChild(innerRing);
+
+    // Center dot
+    const centerDot = figma.createEllipse();
+    const dotR = 4;
+    centerDot.resize(dotR, dotR);
+    centerDot.x = avgX - dotR / 2;
+    centerDot.y = avgY - dotR / 2;
+    centerDot.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    frame.appendChild(centerDot);
+
+    // "Moyenne" label below
+    const avgLabel = figma.createText();
+    avgLabel.fontName = { family: "Inter", style: "Medium" };
+    avgLabel.characters = t(lang, "average");
+    avgLabel.fontSize = 8;
+    avgLabel.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    avgLabel.opacity = 0.5;
+    avgLabel.textAlignHorizontal = "CENTER";
+    avgLabel.resize(50, 10);
+    avgLabel.x = avgX - 25;
+    avgLabel.y = avgY + haloSize / 2 + 2;
+    frame.appendChild(avgLabel);
+
+    // ── Axis labels ──
+    const axisLabels = [
+      { text: t(lang, "notUrgent"), x: MARGIN + INNER / 4, y: gridOffsetY + MARGIN - 14, color: hexToRgb("#3B82F6") },
+      { text: t(lang, "urgent"), x: MARGIN + (INNER * 3) / 4, y: gridOffsetY + MARGIN - 14, color: hexToRgb("#EF4444") },
+    ];
+
+    for (const label of axisLabels) {
+      const t = figma.createText();
+      t.fontName = { family: "Inter", style: "Bold" };
+      t.characters = label.text;
+      t.fontSize = 8;
+      t.letterSpacing = { value: 1.2, unit: "PIXELS" };
+      t.fills = [{ type: "SOLID", color: label.color }];
+      t.textAlignHorizontal = "CENTER";
+      t.resize(INNER / 2, 12);
+      t.x = label.x - INNER / 4;
+      t.y = label.y;
+      frame.appendChild(t);
+    }
+
+    // Left axis: IMPORTANT / PAS IMPORTANT
+    const leftLabels = [
+      { text: t(lang, "important"), y: gridOffsetY + MARGIN + INNER / 4, color: hexToRgb("#10B981") },
+      { text: t(lang, "notImportant"), y: gridOffsetY + MARGIN + (INNER * 3) / 4, color: hexToRgb("#9CA3AF") },
+    ];
+
+    for (const label of leftLabels) {
+      const t = figma.createText();
+      t.fontName = { family: "Inter", style: "Bold" };
+      t.characters = label.text;
+      t.fontSize = 7;
+      t.letterSpacing = { value: 1, unit: "PIXELS" };
+      t.fills = [{ type: "SOLID", color: label.color }];
+      t.rotation = -90;
+      t.x = MARGIN - 14;
+      t.y = label.y;
+      frame.appendChild(t);
+    }
+
+    // ── Quadrant labels ──
+    const quadrantLabels = [
+      { text: t(lang, "schedule"), x: MARGIN + INNER / 4, y: gridOffsetY + MARGIN + 8 },
+      { text: t(lang, "do"), x: MARGIN + (INNER * 3) / 4, y: gridOffsetY + MARGIN + 8 },
+      { text: t(lang, "eliminate"), x: MARGIN + INNER / 4, y: gridOffsetY + MARGIN + INNER / 2 + 8 },
+      { text: t(lang, "delegate"), x: MARGIN + (INNER * 3) / 4, y: gridOffsetY + MARGIN + INNER / 2 + 8 },
+    ];
+
+    for (const label of quadrantLabels) {
+      const t = figma.createText();
+      t.fontName = { family: "Inter", style: "Medium" };
+      t.characters = label.text;
+      t.fontSize = 9;
+      t.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+      t.opacity = 0.2;
+      t.textAlignHorizontal = "CENTER";
+      t.resize(INNER / 2, 14);
+      t.x = label.x - INNER / 4;
+      t.y = label.y;
+      frame.appendChild(t);
+    }
+
+    // ── Result label at bottom ──
+    const isUrgent = (sumCol / voterCount) >= GRID_COLS / 2;
+    const isImportant = (sumRow / voterCount) < GRID_ROWS / 2;
+    let resultLabel = "";
+    if (isUrgent && isImportant) resultLabel = t(lang, "do");
+    else if (!isUrgent && isImportant) resultLabel = t(lang, "schedule");
+    else if (isUrgent && !isImportant) resultLabel = t(lang, "delegate");
+    else resultLabel = t(lang, "eliminate");
+
+    const resultText = figma.createText();
+    resultText.fontName = { family: "Inter", style: "Bold" };
+    resultText.characters = `${t(lang, "result")} : ${resultLabel}`;
+    resultText.fontSize = 12;
+    resultText.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    resultText.textAlignHorizontal = "CENTER";
+    resultText.resize(IMG_SIZE, 16);
+    resultText.x = 0;
+    resultText.y = gridOffsetY + MARGIN + INNER + 12;
+    frame.appendChild(resultText);
+
+    figma.currentPage.appendChild(frame);
+    figma.viewport.scrollAndZoomIntoView([frame]);
+  }
+
+  // ─── Render grid ───────────────────────────────────────────────────────
+
+  function renderCell(col: number, row: number) {
+    const cellVotes = showVotes ? getVotesAtCell(col, row) : [];
+    const bgColor = getCellColor(col, row);
+
+    return (
+      <AutoLayout
+        key={`${col}-${row}`}
+        width={CELL_SIZE}
+        height={CELL_SIZE}
+        fill={bgColor}
+        horizontalAlignItems="center"
+        verticalAlignItems="center"
+        onClick={() => new Promise<void>((resolve) => {
+          placeVote(col, row).then(() => resolve());
+        })}
+        hoverStyle={{ opacity: 0.75 }}
+        tooltip={t(lang, "tooltipVote")}
+      >
+        {cellVotes.length > 0 && (
+          <Frame width={CELL_SIZE} height={CELL_SIZE}>
+            {cellVotes.map(({ key, vote, index }, i) => {
+              const dotSize = 26;
+              const offset = cellVotes.length > 1 ? (i - (cellVotes.length - 1) / 2) * 10 : 0;
+              const posX = (CELL_SIZE - dotSize) / 2 + offset;
+              const posY = (CELL_SIZE - dotSize) / 2;
+
+              return (
+                <AutoLayout
+                  key={key}
+                  width={dotSize}
+                  height={dotSize}
+                  cornerRadius={dotSize / 2}
+                  fill={getDotColor(index)}
+                  horizontalAlignItems="center"
+                  verticalAlignItems="center"
+                  x={posX}
+                  y={posY}
+                  effect={{
+                    type: "drop-shadow",
+                    color: { r: 0, g: 0, b: 0, a: 0.25 },
+                    offset: { x: 0, y: 1 },
+                    blur: 3,
+                  }}
+                  stroke="#FFFFFF"
+                  strokeWidth={2}
+                  tooltip={vote.userName}
+                >
+                  <Text fontSize={8} fontWeight={700} fill="#FFFFFF">
+                    {getInitials(vote.userName)}
+                  </Text>
+                </AutoLayout>
+              );
+            })}
+          </Frame>
+        )}
+      </AutoLayout>
+    );
+  }
+
+  const SEP_SIZE = 1;
+  const SEP_COLOR = "#00000018";
+  const midCol = GRID_COLS / 2;
+  const midRow = GRID_ROWS / 2;
+
+  function renderGridRow(row: number) {
+    const cells = [];
+    for (let col = 0; col < GRID_COLS; col++) {
+      // Vertical separator at the middle
+      if (col === midCol) {
+        cells.push(
+          <AutoLayout key={`vsep-${row}`} width={SEP_SIZE} height={CELL_SIZE} fill={SEP_COLOR} />
+        );
+      }
+      cells.push(renderCell(col, row));
+    }
+    return (
+      <AutoLayout key={`row-${row}`} direction="horizontal" spacing={0}>
+        {cells}
+      </AutoLayout>
+    );
+  }
+
+  function renderGrid() {
+    const rows = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      // Horizontal separator at the middle
+      if (row === midRow) {
+        rows.push(
+          <AutoLayout key="hsep" width={GRID_WIDTH + SEP_SIZE} height={SEP_SIZE} fill={SEP_COLOR} />
+        );
+      }
+      rows.push(renderGridRow(row));
+    }
+    return (
+      <AutoLayout direction="vertical" spacing={0}>
+        {rows}
+      </AutoLayout>
+    );
+  }
+
+  // ─── Compute average position ──────────────────────────────────────────
+
+  let avgLabel = "";
+  if (showVotes && voterCount > 0) {
+    let sumCol = 0;
+    let sumRow = 0;
+    for (const [, vote] of allVotes) {
+      sumCol += vote.col;
+      sumRow += vote.row;
+    }
+    const avgCol = sumCol / voterCount;
+    const avgRow = sumRow / voterCount;
+
+    // Determine quadrant of average (urgent = right = high col)
+    const isUrgent = avgCol >= GRID_COLS / 2;
+    const isImportant = avgRow < GRID_ROWS / 2;
+    if (isUrgent && isImportant) avgLabel = t(lang, "do");
+    else if (!isUrgent && isImportant) avgLabel = t(lang, "schedule");
+    else if (isUrgent && !isImportant) avgLabel = t(lang, "delegate");
+    else avgLabel = t(lang, "eliminate");
+  }
+
+  // ─── Main layout ──────────────────────────────────────────────────────
+
+  return (
+    <AutoLayout
+      direction="vertical"
+      spacing={0}
+      cornerRadius={16}
+      overflow="hidden"
+      effect={{
+        type: "drop-shadow",
+        color: { r: 0, g: 0, b: 0, a: 0.1 },
+        offset: { x: 0, y: 4 },
+        blur: 16,
+      }}
+    >
+      {/* Title bar */}
+      <AutoLayout
+        direction="vertical"
+        spacing={6}
+        padding={{ vertical: 14, horizontal: 20 }}
+        fill="#F9FAFB"
+        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        horizontalAlignItems="center"
+      >
+        <Text fontSize={18} fontWeight={800} fill="#1F2937" letterSpacing={0.5}>
+          {t(lang, "title")}
+        </Text>
+        <Input
+          value={topic}
+          placeholder={t(lang, "placeholder")}
+          onTextEditEnd={(e) => setTopic(e.characters)}
+          inputBehavior="truncate"
+          fontSize={13}
+          fill="#6B7280"
+          width={300}
+          horizontalAlignText="center"
+          inputFrameProps={{
+            padding: { vertical: 4, horizontal: 12 },
+            cornerRadius: 6,
+            fill: "#E5E7EB",
+          }}
+        />
+      </AutoLayout>
+
+      {/* Status bar */}
+      <AutoLayout
+        direction="horizontal"
+        spacing={12}
+        padding={{ vertical: 8, horizontal: 20 }}
+        fill="#F3F4F6"
+        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        horizontalAlignItems="center"
+        verticalAlignItems="center"
+      >
+        <AutoLayout
+          cornerRadius={10}
+          padding={{ vertical: 2, horizontal: 10 }}
+          fill={voterCount > 0 ? "#3B82F6" : "#9CA3AF"}
+        >
+          <Text fontSize={11} fontWeight={700} fill="#FFFFFF">
+            {voterCount > 0
+              ? `${voterCount.toString()} ${voterCount > 1 ? t(lang, "votes") : t(lang, "vote")}`
+              : t(lang, "noVotes")}
+          </Text>
+        </AutoLayout>
+
+        {showVotes && avgLabel !== "" && (
+          <AutoLayout
+            cornerRadius={10}
+            padding={{ vertical: 2, horizontal: 10 }}
+            fill="#10B981"
+          >
+            <Text fontSize={11} fontWeight={700} fill="#FFFFFF">
+              {`${t(lang, "result")} : ${avgLabel}`}
+            </Text>
+          </AutoLayout>
+        )}
+
+        {!showVotes && voterCount > 0 && (
+          <Text fontSize={11} fill="#6B7280">
+            {t(lang, "selectReveal")}
+          </Text>
+        )}
+      </AutoLayout>
+
+      {/* Axis labels row: URGENT / PAS URGENT */}
+      <AutoLayout
+        direction="horizontal"
+        spacing={0}
+        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+      >
+        {/* Corner spacer */}
+        <AutoLayout width={AXIS_LABEL_SIZE} height={AXIS_LABEL_SIZE} fill="#F9FAFB" />
+        <AutoLayout
+          width={GRID_WIDTH / 2}
+          height={AXIS_LABEL_SIZE}
+          horizontalAlignItems="center"
+          verticalAlignItems="center"
+          fill="#F9FAFB"
+        >
+          <Text fontSize={10} fontWeight={700} fill="#3B82F6" letterSpacing={1.5}>
+            {t(lang, "notUrgent")}
+          </Text>
+        </AutoLayout>
+        <AutoLayout
+          width={GRID_WIDTH / 2}
+          height={AXIS_LABEL_SIZE}
+          horizontalAlignItems="center"
+          verticalAlignItems="center"
+          fill="#F9FAFB"
+        >
+          <Text fontSize={10} fontWeight={700} fill="#EF4444" letterSpacing={1.5}>
+            {t(lang, "urgent")}
+          </Text>
+        </AutoLayout>
+        {/* Right corner spacer */}
+        <AutoLayout width={AXIS_LABEL_SIZE} height={AXIS_LABEL_SIZE} fill="#F9FAFB" />
+      </AutoLayout>
+
+      {/* Matrix area: left labels + grid + right spacer */}
+      <AutoLayout direction="horizontal" spacing={0} width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}>
+        {/* Left axis labels */}
+        <AutoLayout
+          direction="vertical"
+          width={AXIS_LABEL_SIZE}
+          height={GRID_HEIGHT}
+          fill="#F9FAFB"
+          horizontalAlignItems="center"
+        >
+          <AutoLayout
+            width={AXIS_LABEL_SIZE}
+            height={GRID_HEIGHT / 2}
+            horizontalAlignItems="center"
+            verticalAlignItems="center"
+          >
+            <Text
+              fontSize={10}
+              fontWeight={700}
+              fill="#10B981"
+              rotation={-90}
+              letterSpacing={1.5}
+            >
+              {t(lang, "important")}
+            </Text>
+          </AutoLayout>
+          <AutoLayout
+            width={AXIS_LABEL_SIZE}
+            height={GRID_HEIGHT / 2}
+            horizontalAlignItems="center"
+            verticalAlignItems="center"
+          >
+            <Text
+              fontSize={10}
+              fontWeight={700}
+              fill="#9CA3AF"
+              rotation={-90}
+              letterSpacing={1.5}
+            >
+              {t(lang, "notImportant")}
+            </Text>
+          </AutoLayout>
+        </AutoLayout>
+
+        {/* Grid */}
+        <AutoLayout direction="vertical" spacing={0} width="fill-parent">
+          {renderGrid()}
+        </AutoLayout>
+
+        {/* Right spacer */}
+        <AutoLayout width={AXIS_LABEL_SIZE} height={GRID_HEIGHT} fill="#F9FAFB" />
+      </AutoLayout>
+
+      {/* Footer */}
+      <AutoLayout
+        direction="horizontal"
+        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        padding={{ vertical: 10, horizontal: 20 }}
+        fill="#F3F4F6"
+        horizontalAlignItems="center"
+      >
+        <Text fontSize={11} fill="#9CA3AF">
+          {t(lang, "clickToVote")}
+        </Text>
+      </AutoLayout>
+    </AutoLayout>
+  );
+}
+
+widget.register(EisenhowerMatrix);
