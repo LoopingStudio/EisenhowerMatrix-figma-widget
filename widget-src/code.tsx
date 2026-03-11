@@ -26,7 +26,7 @@ interface VotePosition {
 
 type Lang = "fr" | "en" | "es" | "de" | "ja" | "pt";
 
-const TRANSLATIONS: Record<Lang, Record<string, string>> = {
+const TRANSLATIONS = {
   fr: {
     title: "Matrice d'Eisenhower",
     placeholder: "Sujet à évaluer...",
@@ -183,7 +183,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     anonymous: "Anónimo",
     resultFrame: "Resultado",
   },
-};
+} as const;
+
+type TranslationKey = keyof typeof TRANSLATIONS.en;
 
 const LANG_OPTIONS: Array<{ option: Lang; label: string }> = [
   { option: "fr", label: "Français" },
@@ -194,11 +196,11 @@ const LANG_OPTIONS: Array<{ option: Lang; label: string }> = [
   { option: "pt", label: "Português" },
 ];
 
-function t(lang: Lang, key: string): string {
+function t(lang: Lang, key: TranslationKey): string {
   return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.en[key] || key;
 }
 
-// ─── Icons (11x11 SVG for property menu) ─────────────────────────────────────
+// ─── Icons (SVG for property menu) ───────────────────────────────────────────
 
 const ICON_EYE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 4.5C6 4.5 2.7 7 1 10c1.7 3 5 5.5 9 5.5s7.3-2.5 9-5.5c-1.7-3-5-5.5-9-5.5Z" stroke="white" stroke-width="1.5" fill="none"/><circle cx="10" cy="10" r="2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>`;
 
@@ -216,41 +218,55 @@ const CELL_SIZE = 40;
 const GRID_WIDTH = GRID_COLS * CELL_SIZE;
 const GRID_HEIGHT = GRID_ROWS * CELL_SIZE;
 const AXIS_LABEL_SIZE = 28;
+const TOTAL_WIDTH = GRID_WIDTH + AXIS_LABEL_SIZE * 2;
 
-// Quadrant colors (top-left, top-right, bottom-left, bottom-right)
 const Q_COLORS = {
-  topLeft: { r: 0.86, g: 0.92, b: 0.99 },     // Pas urgent+Important — blue (Planifier)
-  topRight: { r: 0.99, g: 0.89, b: 0.88 },     // Urgent+Important — red (Faire)
-  bottomLeft: { r: 0.82, g: 0.98, b: 0.90 },   // Pas urgent+Pas important — green (Éliminer)
-  bottomRight: { r: 1.0, g: 0.95, b: 0.78 },   // Urgent+Pas important — yellow (Déléguer)
+  topLeft: { r: 0.86, g: 0.92, b: 0.99 },
+  topRight: { r: 0.99, g: 0.89, b: 0.88 },
+  bottomLeft: { r: 0.82, g: 0.98, b: 0.90 },
+  bottomRight: { r: 1.0, g: 0.95, b: 0.78 },
 };
 
-// Dot colors for different users (cycle through these)
 const DOT_COLORS = [
   "#EF4444", "#3B82F6", "#F59E0B", "#10B981",
   "#8B5CF6", "#EC4899", "#F97316", "#06B6D4",
   "#84CC16", "#6366F1", "#E11D48", "#14B8A6",
 ];
 
+const DOT_COLORS_RGB = DOT_COLORS.map(hexToRgb);
+
+// Pre-computed cell colors (grid is static)
+const CELL_COLORS: string[][] = [];
+for (let row = 0; row < GRID_ROWS; row++) {
+  CELL_COLORS[row] = [];
+  for (let col = 0; col < GRID_COLS; col++) {
+    CELL_COLORS[row][col] = bilinearHex(col, row);
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getCellColor(col: number, row: number): string {
-  // Blend colors based on position in the grid
-  const tx = col / (GRID_COLS - 1); // 0=left(urgent) to 1=right(not urgent)
-  const ty = row / (GRID_ROWS - 1); // 0=top(important) to 1=bottom(not important)
-
+function bilinearInterp(col: number, row: number): RGB {
+  const tx = col / (GRID_COLS - 1);
+  const ty = row / (GRID_ROWS - 1);
   const tl = Q_COLORS.topLeft;
   const tr = Q_COLORS.topRight;
   const bl = Q_COLORS.bottomLeft;
   const br = Q_COLORS.bottomRight;
+  return {
+    r: tl.r * (1 - tx) * (1 - ty) + tr.r * tx * (1 - ty) + bl.r * (1 - tx) * ty + br.r * tx * ty,
+    g: tl.g * (1 - tx) * (1 - ty) + tr.g * tx * (1 - ty) + bl.g * (1 - tx) * ty + br.g * tx * ty,
+    b: tl.b * (1 - tx) * (1 - ty) + tr.b * tx * (1 - ty) + bl.b * (1 - tx) * ty + br.b * tx * ty,
+  };
+}
 
-  // Bilinear interpolation
-  const r = tl.r * (1 - tx) * (1 - ty) + tr.r * tx * (1 - ty) + bl.r * (1 - tx) * ty + br.r * tx * ty;
-  const g = tl.g * (1 - tx) * (1 - ty) + tr.g * tx * (1 - ty) + bl.g * (1 - tx) * ty + br.g * tx * ty;
-  const b = tl.b * (1 - tx) * (1 - ty) + tr.b * tx * (1 - ty) + bl.b * (1 - tx) * ty + br.b * tx * ty;
-
+function rgbToHex({ r, g, b }: RGB): string {
   const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function bilinearHex(col: number, row: number): string {
+  return rgbToHex(bilinearInterp(col, row));
 }
 
 function getInitials(name: string): string {
@@ -266,6 +282,10 @@ function getDotColor(index: number): string {
   return DOT_COLORS[index % DOT_COLORS.length];
 }
 
+function getDotColorRgb(index: number): RGB {
+  return DOT_COLORS_RGB[index % DOT_COLORS_RGB.length];
+}
+
 function hexToRgb(hex: string): RGB {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -273,19 +293,59 @@ function hexToRgb(hex: string): RGB {
   return { r, g, b };
 }
 
-function getCellColorRgb(col: number, row: number): RGB {
-  const tx = col / (GRID_COLS - 1);
-  const ty = row / (GRID_ROWS - 1);
-  const tl = Q_COLORS.topLeft;
-  const tr = Q_COLORS.topRight;
-  const bl = Q_COLORS.bottomLeft;
-  const br = Q_COLORS.bottomRight;
-  return {
-    r: tl.r * (1 - tx) * (1 - ty) + tr.r * tx * (1 - ty) + bl.r * (1 - tx) * ty + br.r * tx * ty,
-    g: tl.g * (1 - tx) * (1 - ty) + tr.g * tx * (1 - ty) + bl.g * (1 - tx) * ty + br.g * tx * ty,
-    b: tl.b * (1 - tx) * (1 - ty) + tr.b * tx * (1 - ty) + bl.b * (1 - tx) * ty + br.b * tx * ty,
-  };
+function getQuadrantKey(avgCol: number, avgRow: number): TranslationKey {
+  const isUrgent = avgCol >= GRID_COLS / 2;
+  const isImportant = avgRow < GRID_ROWS / 2;
+  if (isUrgent && isImportant) return "do";
+  if (!isUrgent && isImportant) return "schedule";
+  if (isUrgent && !isImportant) return "delegate";
+  return "eliminate";
 }
+
+function computeVoteAverages(votes: Array<[string, VotePosition]>): { avgCol: number; avgRow: number } {
+  let sumCol = 0;
+  let sumRow = 0;
+  for (const [, vote] of votes) {
+    sumCol += vote.col;
+    sumRow += vote.row;
+  }
+  const count = votes.length;
+  return { avgCol: sumCol / count, avgRow: sumRow / count };
+}
+
+function formatVoteCount(count: number, lang: Lang): string {
+  if (count === 0) return t(lang, "noVotes");
+  return `${count} ${count > 1 ? t(lang, "votes") : t(lang, "vote")}`;
+}
+
+// Pre-compute vote-by-cell lookup map
+type CellVote = { key: string; vote: VotePosition; index: number };
+function buildVoteByCellMap(votes: Array<[string, VotePosition]>): Map<string, CellVote[]> {
+  const map = new Map<string, CellVote[]>();
+  let idx = 0;
+  for (const [key, vote] of votes) {
+    const cellKey = `${vote.col}:${vote.row}`;
+    let arr = map.get(cellKey);
+    if (!arr) {
+      arr = [];
+      map.set(cellKey, arr);
+    }
+    arr.push({ key, vote, index: idx });
+    idx++;
+  }
+  return map;
+}
+
+// ─── Axis color constants ────────────────────────────────────────────────────
+
+const AXIS_COLORS = {
+  notUrgent: { hex: "#3B82F6", rgb: hexToRgb("#3B82F6") },
+  urgent: { hex: "#EF4444", rgb: hexToRgb("#EF4444") },
+  important: { hex: "#10B981", rgb: hexToRgb("#10B981") },
+  notImportant: { hex: "#9CA3AF", rgb: hexToRgb("#9CA3AF") },
+};
+
+const DARK_COLOR: RGB = { r: 0.12, g: 0.16, b: 0.21 };
 
 // ─── Main Widget ─────────────────────────────────────────────────────────────
 
@@ -298,6 +358,9 @@ function EisenhowerMatrix() {
 
   const allVotes = votesMap.entries();
   const voterCount = allVotes.length;
+
+  // Pre-compute vote lookup map (O(V) once instead of O(V*144))
+  const voteByCellMap = showVotes ? buildVoteByCellMap(allVotes) : null;
 
   // Property menu
   usePropertyMenu(
@@ -341,18 +404,15 @@ function EisenhowerMatrix() {
       } else if (propertyName === "showVotes") {
         setShowVotes(!showVotes);
       } else if (propertyName === "generateImage") {
-        return new Promise<void>((resolve) => {
-          generateResultImage().then(() => resolve());
-        });
+        return generateResultImage();
       } else if (propertyName === "resetVotes") {
-        for (const [key] of votesMap.entries()) {
-          votesMap.delete(key);
-        }
+        const keys = [...votesMap.keys()];
+        for (const key of keys) votesMap.delete(key);
       }
     }
   );
 
-  // Place vote handler — called from cell onClick
+  // Place vote handler
   async function placeVote(col: number, row: number) {
     const user = figma.currentUser;
     const sessionId = user?.sessionId?.toString() || "anonymous";
@@ -364,7 +424,7 @@ function EisenhowerMatrix() {
         const image = await figma.createImageAsync(photoUrl);
         imageHash = image.hash;
       } catch (e) {
-        // fallback: no avatar
+        console.warn("Failed to load avatar:", e);
       }
     }
 
@@ -377,32 +437,22 @@ function EisenhowerMatrix() {
     });
   }
 
-  // Get votes at a specific cell
-  function getVotesAtCell(col: number, row: number): Array<{ key: string; vote: VotePosition; index: number }> {
-    const result: Array<{ key: string; vote: VotePosition; index: number }> = [];
-    let idx = 0;
-    for (const [key, vote] of allVotes) {
-      if (vote.col === col && vote.row === row) {
-        result.push({ key, vote, index: idx });
-      }
-      idx++;
-    }
-    return result;
-  }
-
   // ─── Generate result image ──────────────────────────────────────────────
 
   async function generateResultImage() {
     const widgetNode = await figma.getNodeByIdAsync(widgetId) as WidgetNode;
     if (!widgetNode || voterCount === 0) return;
 
-    await figma.loadFontAsync({ family: "Inter", style: "Bold" });
-    await figma.loadFontAsync({ family: "Inter", style: "Medium" });
-    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    await Promise.all([
+      figma.loadFontAsync({ family: "Inter", style: "Bold" }),
+      figma.loadFontAsync({ family: "Inter", style: "Medium" }),
+      figma.loadFontAsync({ family: "Inter", style: "Regular" }),
+    ]);
 
     const IMG_SIZE = 400;
     const MARGIN = 36;
     const INNER = IMG_SIZE - MARGIN * 2;
+    const gridOffsetY = 44;
 
     const frame = figma.createFrame();
     frame.name = topic ? `${t(lang, "resultFrame")} — ${topic}` : `${t(lang, "resultFrame")} ${t(lang, "title")}`;
@@ -414,24 +464,24 @@ function EisenhowerMatrix() {
     frame.clipsContent = true;
 
     // ── Title ──
-    const title = figma.createText();
-    title.fontName = { family: "Inter", style: "Bold" };
-    title.characters = topic || t(lang, "title");
-    title.fontSize = 14;
-    title.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
-    title.x = MARGIN;
-    title.y = 16;
-    frame.appendChild(title);
+    const titleNode = figma.createText();
+    titleNode.fontName = { family: "Inter", style: "Bold" };
+    titleNode.characters = topic || t(lang, "title");
+    titleNode.fontSize = 14;
+    titleNode.fills = [{ type: "SOLID", color: DARK_COLOR }];
+    titleNode.x = MARGIN;
+    titleNode.y = 16;
+    frame.appendChild(titleNode);
 
-    // Vote count
-    const subtitle = figma.createText();
-    subtitle.fontName = { family: "Inter", style: "Medium" };
-    subtitle.characters = `${voterCount} ${voterCount > 1 ? t(lang, "votes") : t(lang, "vote")}`;
-    subtitle.fontSize = 10;
-    subtitle.fills = [{ type: "SOLID", color: { r: 0.42, g: 0.45, b: 0.5 } }];
-    subtitle.x = MARGIN;
-    subtitle.y = 32;
-    frame.appendChild(subtitle);
+    // ── Vote count ──
+    const subtitleNode = figma.createText();
+    subtitleNode.fontName = { family: "Inter", style: "Medium" };
+    subtitleNode.characters = formatVoteCount(voterCount, lang);
+    subtitleNode.fontSize = 10;
+    subtitleNode.fills = [{ type: "SOLID", color: { r: 0.42, g: 0.45, b: 0.5 } }];
+    subtitleNode.x = MARGIN;
+    subtitleNode.y = 32;
+    frame.appendChild(subtitleNode);
 
     // ── Quadrant backgrounds ──
     const quadrants = [
@@ -440,8 +490,6 @@ function EisenhowerMatrix() {
       { x: 0, y: INNER / 2, color: Q_COLORS.bottomLeft },
       { x: INNER / 2, y: INNER / 2, color: Q_COLORS.bottomRight },
     ];
-
-    const gridOffsetY = 44;
 
     for (const q of quadrants) {
       const rect = figma.createRectangle();
@@ -469,27 +517,31 @@ function EisenhowerMatrix() {
     hLine.opacity = 0.1;
     frame.appendChild(hLine);
 
-    // ── Vote dots (group by cell for offset) ──
-    const cellGroups: Record<string, Array<{ vote: VotePosition; idx: number }>> = {};
-    let idx = 0;
-    for (const [, vote] of allVotes) {
-      const cellKey = `${vote.col}:${vote.row}`;
-      if (!cellGroups[cellKey]) cellGroups[cellKey] = [];
-      cellGroups[cellKey].push({ vote, idx });
-      idx++;
-    }
+    // ── Pre-fetch avatars in parallel ──
+    const uniquePhotos = [...new Set(allVotes.filter(([, v]) => v.userPhoto).map(([, v]) => v.userPhoto!))];
+    const imageMap = new Map<string, ImageHash>();
+    await Promise.all(uniquePhotos.map(async (url) => {
+      try {
+        const image = await figma.createImageAsync(url);
+        imageMap.set(url, image.hash);
+      } catch (e) {
+        console.warn("Failed to load avatar for export:", e);
+      }
+    }));
 
-    for (const cellKey of Object.keys(cellGroups)) {
-      const group = cellGroups[cellKey];
+    // ── Vote dots ──
+    const cellGroups = buildVoteByCellMap(allVotes);
+
+    for (const [, group] of cellGroups) {
       const count = group.length;
 
       for (let i = 0; i < count; i++) {
-        const { vote, idx: voteIdx } = group[i];
+        const { vote, index: voteIdx } = group[i];
         const vx = MARGIN + ((vote.col + 0.5) / GRID_COLS) * INNER;
         const vy = gridOffsetY + MARGIN + ((vote.row + 0.5) / GRID_ROWS) * INNER;
         const offset = count > 1 ? (i - (count - 1) / 2) * 10 : 0;
         const dotSize = 22;
-        const dotColor = hexToRgb(getDotColor(voteIdx));
+        const dotColor = getDotColorRgb(voteIdx);
 
         // Shadow
         const shadow = figma.createEllipse();
@@ -500,7 +552,7 @@ function EisenhowerMatrix() {
         shadow.opacity = 0.15;
         frame.appendChild(shadow);
 
-        // Dot with avatar or color+initials
+        // Dot
         const dot = figma.createEllipse();
         dot.resize(dotSize, dotSize);
         dot.x = vx - dotSize / 2 + offset;
@@ -508,11 +560,11 @@ function EisenhowerMatrix() {
 
         let hasAvatar = false;
         if (vote.userPhoto) {
-          try {
-            const image = await figma.createImageAsync(vote.userPhoto);
-            dot.fills = [{ type: "IMAGE", imageHash: image.hash, scaleMode: "FILL" }];
+          const hash = imageMap.get(vote.userPhoto);
+          if (hash) {
+            dot.fills = [{ type: "IMAGE", imageHash: hash, scaleMode: "FILL" }];
             hasAvatar = true;
-          } catch (e) {
+          } else {
             dot.fills = [{ type: "SOLID", color: dotColor }];
           }
         } else {
@@ -525,124 +577,113 @@ function EisenhowerMatrix() {
         frame.appendChild(dot);
 
         if (!hasAvatar) {
-          const initials = figma.createText();
-          initials.fontName = { family: "Inter", style: "Bold" };
-          initials.characters = getInitials(vote.userName);
-          initials.fontSize = 8;
-          initials.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-          initials.textAlignHorizontal = "CENTER";
-          initials.textAlignVertical = "CENTER";
-          initials.resize(dotSize, dotSize);
-          initials.x = vx - dotSize / 2 + offset;
-          initials.y = vy - dotSize / 2;
-          frame.appendChild(initials);
+          const initialsNode = figma.createText();
+          initialsNode.fontName = { family: "Inter", style: "Bold" };
+          initialsNode.characters = getInitials(vote.userName);
+          initialsNode.fontSize = 8;
+          initialsNode.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+          initialsNode.textAlignHorizontal = "CENTER";
+          initialsNode.textAlignVertical = "CENTER";
+          initialsNode.resize(dotSize, dotSize);
+          initialsNode.x = vx - dotSize / 2 + offset;
+          initialsNode.y = vy - dotSize / 2;
+          frame.appendChild(initialsNode);
         }
       }
     }
 
-    // ── Average marker (crosshair) ──
-    let sumCol = 0;
-    let sumRow = 0;
-    for (const [, vote] of allVotes) {
-      sumCol += vote.col;
-      sumRow += vote.row;
-    }
-    const avgX = MARGIN + ((sumCol / voterCount + 0.5) / GRID_COLS) * INNER;
-    const avgY = gridOffsetY + MARGIN + ((sumRow / voterCount + 0.5) / GRID_ROWS) * INNER;
+    // ── Average marker ──
+    const { avgCol, avgRow } = computeVoteAverages(allVotes);
+    const avgX = MARGIN + ((avgCol + 0.5) / GRID_COLS) * INNER;
+    const avgY = gridOffsetY + MARGIN + ((avgRow + 0.5) / GRID_ROWS) * INNER;
 
-    // Soft outer halo
-    const halo = figma.createEllipse();
     const haloSize = 36;
+    const halo = figma.createEllipse();
     halo.resize(haloSize, haloSize);
     halo.x = avgX - haloSize / 2;
     halo.y = avgY - haloSize / 2;
-    halo.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    halo.fills = [{ type: "SOLID", color: DARK_COLOR }];
     halo.opacity = 0.06;
     frame.appendChild(halo);
 
-    // Outer ring
     const outerRing = figma.createEllipse();
     const outerSize = 22;
     outerRing.resize(outerSize, outerSize);
     outerRing.x = avgX - outerSize / 2;
     outerRing.y = avgY - outerSize / 2;
     outerRing.fills = [];
-    outerRing.strokes = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    outerRing.strokes = [{ type: "SOLID", color: DARK_COLOR }];
     outerRing.strokeWeight = 1.5;
     outerRing.opacity = 0.6;
     frame.appendChild(outerRing);
 
-    // Inner ring
     const innerRing = figma.createEllipse();
     const innerSize = 12;
     innerRing.resize(innerSize, innerSize);
     innerRing.x = avgX - innerSize / 2;
     innerRing.y = avgY - innerSize / 2;
     innerRing.fills = [];
-    innerRing.strokes = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    innerRing.strokes = [{ type: "SOLID", color: DARK_COLOR }];
     innerRing.strokeWeight = 1;
     innerRing.opacity = 0.4;
     frame.appendChild(innerRing);
 
-    // Center dot
     const centerDot = figma.createEllipse();
     const dotR = 4;
     centerDot.resize(dotR, dotR);
     centerDot.x = avgX - dotR / 2;
     centerDot.y = avgY - dotR / 2;
-    centerDot.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
+    centerDot.fills = [{ type: "SOLID", color: DARK_COLOR }];
     frame.appendChild(centerDot);
 
-    // "Moyenne" label below
-    const avgLabel = figma.createText();
-    avgLabel.fontName = { family: "Inter", style: "Medium" };
-    avgLabel.characters = t(lang, "average");
-    avgLabel.fontSize = 8;
-    avgLabel.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
-    avgLabel.opacity = 0.5;
-    avgLabel.textAlignHorizontal = "CENTER";
-    avgLabel.resize(50, 10);
-    avgLabel.x = avgX - 25;
-    avgLabel.y = avgY + haloSize / 2 + 2;
-    frame.appendChild(avgLabel);
+    const avgLabelNode = figma.createText();
+    avgLabelNode.fontName = { family: "Inter", style: "Medium" };
+    avgLabelNode.characters = t(lang, "average");
+    avgLabelNode.fontSize = 8;
+    avgLabelNode.fills = [{ type: "SOLID", color: DARK_COLOR }];
+    avgLabelNode.opacity = 0.5;
+    avgLabelNode.textAlignHorizontal = "CENTER";
+    avgLabelNode.resize(50, 10);
+    avgLabelNode.x = avgX - 25;
+    avgLabelNode.y = avgY + haloSize / 2 + 2;
+    frame.appendChild(avgLabelNode);
 
     // ── Axis labels ──
     const axisLabels = [
-      { text: t(lang, "notUrgent"), x: MARGIN + INNER / 4, y: gridOffsetY + MARGIN - 14, color: hexToRgb("#3B82F6") },
-      { text: t(lang, "urgent"), x: MARGIN + (INNER * 3) / 4, y: gridOffsetY + MARGIN - 14, color: hexToRgb("#EF4444") },
+      { text: t(lang, "notUrgent"), x: MARGIN + INNER / 4, y: gridOffsetY + MARGIN - 14, color: AXIS_COLORS.notUrgent.rgb },
+      { text: t(lang, "urgent"), x: MARGIN + (INNER * 3) / 4, y: gridOffsetY + MARGIN - 14, color: AXIS_COLORS.urgent.rgb },
     ];
 
     for (const label of axisLabels) {
-      const t = figma.createText();
-      t.fontName = { family: "Inter", style: "Bold" };
-      t.characters = label.text;
-      t.fontSize = 8;
-      t.letterSpacing = { value: 1.2, unit: "PIXELS" };
-      t.fills = [{ type: "SOLID", color: label.color }];
-      t.textAlignHorizontal = "CENTER";
-      t.resize(INNER / 2, 12);
-      t.x = label.x - INNER / 4;
-      t.y = label.y;
-      frame.appendChild(t);
+      const labelNode = figma.createText();
+      labelNode.fontName = { family: "Inter", style: "Bold" };
+      labelNode.characters = label.text;
+      labelNode.fontSize = 8;
+      labelNode.letterSpacing = { value: 1.2, unit: "PIXELS" };
+      labelNode.fills = [{ type: "SOLID", color: label.color }];
+      labelNode.textAlignHorizontal = "CENTER";
+      labelNode.resize(INNER / 2, 12);
+      labelNode.x = label.x - INNER / 4;
+      labelNode.y = label.y;
+      frame.appendChild(labelNode);
     }
 
-    // Left axis: IMPORTANT / PAS IMPORTANT
     const leftLabels = [
-      { text: t(lang, "important"), y: gridOffsetY + MARGIN + INNER / 4, color: hexToRgb("#10B981") },
-      { text: t(lang, "notImportant"), y: gridOffsetY + MARGIN + (INNER * 3) / 4, color: hexToRgb("#9CA3AF") },
+      { text: t(lang, "important"), y: gridOffsetY + MARGIN + INNER / 4, color: AXIS_COLORS.important.rgb },
+      { text: t(lang, "notImportant"), y: gridOffsetY + MARGIN + (INNER * 3) / 4, color: AXIS_COLORS.notImportant.rgb },
     ];
 
     for (const label of leftLabels) {
-      const t = figma.createText();
-      t.fontName = { family: "Inter", style: "Bold" };
-      t.characters = label.text;
-      t.fontSize = 7;
-      t.letterSpacing = { value: 1, unit: "PIXELS" };
-      t.fills = [{ type: "SOLID", color: label.color }];
-      t.rotation = -90;
-      t.x = MARGIN - 14;
-      t.y = label.y;
-      frame.appendChild(t);
+      const labelNode = figma.createText();
+      labelNode.fontName = { family: "Inter", style: "Bold" };
+      labelNode.characters = label.text;
+      labelNode.fontSize = 7;
+      labelNode.letterSpacing = { value: 1, unit: "PIXELS" };
+      labelNode.fills = [{ type: "SOLID", color: label.color }];
+      labelNode.rotation = -90;
+      labelNode.x = MARGIN - 14;
+      labelNode.y = label.y;
+      frame.appendChild(labelNode);
     }
 
     // ── Quadrant labels ──
@@ -654,38 +695,31 @@ function EisenhowerMatrix() {
     ];
 
     for (const label of quadrantLabels) {
-      const t = figma.createText();
-      t.fontName = { family: "Inter", style: "Medium" };
-      t.characters = label.text;
-      t.fontSize = 9;
-      t.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
-      t.opacity = 0.2;
-      t.textAlignHorizontal = "CENTER";
-      t.resize(INNER / 2, 14);
-      t.x = label.x - INNER / 4;
-      t.y = label.y;
-      frame.appendChild(t);
+      const labelNode = figma.createText();
+      labelNode.fontName = { family: "Inter", style: "Medium" };
+      labelNode.characters = label.text;
+      labelNode.fontSize = 9;
+      labelNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+      labelNode.opacity = 0.2;
+      labelNode.textAlignHorizontal = "CENTER";
+      labelNode.resize(INNER / 2, 14);
+      labelNode.x = label.x - INNER / 4;
+      labelNode.y = label.y;
+      frame.appendChild(labelNode);
     }
 
-    // ── Result label at bottom ──
-    const isUrgent = (sumCol / voterCount) >= GRID_COLS / 2;
-    const isImportant = (sumRow / voterCount) < GRID_ROWS / 2;
-    let resultLabel = "";
-    if (isUrgent && isImportant) resultLabel = t(lang, "do");
-    else if (!isUrgent && isImportant) resultLabel = t(lang, "schedule");
-    else if (isUrgent && !isImportant) resultLabel = t(lang, "delegate");
-    else resultLabel = t(lang, "eliminate");
-
-    const resultText = figma.createText();
-    resultText.fontName = { family: "Inter", style: "Bold" };
-    resultText.characters = `${t(lang, "result")} : ${resultLabel}`;
-    resultText.fontSize = 12;
-    resultText.fills = [{ type: "SOLID", color: { r: 0.12, g: 0.16, b: 0.21 } }];
-    resultText.textAlignHorizontal = "CENTER";
-    resultText.resize(IMG_SIZE, 16);
-    resultText.x = 0;
-    resultText.y = gridOffsetY + MARGIN + INNER + 12;
-    frame.appendChild(resultText);
+    // ── Result label ──
+    const resultLabel = t(lang, getQuadrantKey(avgCol, avgRow));
+    const resultNode = figma.createText();
+    resultNode.fontName = { family: "Inter", style: "Bold" };
+    resultNode.characters = `${t(lang, "result")} : ${resultLabel}`;
+    resultNode.fontSize = 12;
+    resultNode.fills = [{ type: "SOLID", color: DARK_COLOR }];
+    resultNode.textAlignHorizontal = "CENTER";
+    resultNode.resize(IMG_SIZE, 16);
+    resultNode.x = 0;
+    resultNode.y = gridOffsetY + MARGIN + INNER + 12;
+    frame.appendChild(resultNode);
 
     figma.currentPage.appendChild(frame);
     figma.viewport.scrollAndZoomIntoView([frame]);
@@ -694,20 +728,17 @@ function EisenhowerMatrix() {
   // ─── Render grid ───────────────────────────────────────────────────────
 
   function renderCell(col: number, row: number) {
-    const cellVotes = showVotes ? getVotesAtCell(col, row) : [];
-    const bgColor = getCellColor(col, row);
+    const cellVotes = voteByCellMap?.get(`${col}:${row}`) || [];
 
     return (
       <AutoLayout
         key={`${col}-${row}`}
         width={CELL_SIZE}
         height={CELL_SIZE}
-        fill={bgColor}
+        fill={CELL_COLORS[row][col]}
         horizontalAlignItems="center"
         verticalAlignItems="center"
-        onClick={() => new Promise<void>((resolve) => {
-          placeVote(col, row).then(() => resolve());
-        })}
+        onClick={() => placeVote(col, row)}
         hoverStyle={{ opacity: 0.75 }}
         tooltip={t(lang, "tooltipVote")}
       >
@@ -760,7 +791,6 @@ function EisenhowerMatrix() {
   function renderGridRow(row: number) {
     const cells = [];
     for (let col = 0; col < GRID_COLS; col++) {
-      // Vertical separator at the middle
       if (col === midCol) {
         cells.push(
           <AutoLayout key={`vsep-${row}`} width={SEP_SIZE} height={CELL_SIZE} fill={SEP_COLOR} />
@@ -778,7 +808,6 @@ function EisenhowerMatrix() {
   function renderGrid() {
     const rows = [];
     for (let row = 0; row < GRID_ROWS; row++) {
-      // Horizontal separator at the middle
       if (row === midRow) {
         rows.push(
           <AutoLayout key="hsep" width={GRID_WIDTH + SEP_SIZE} height={SEP_SIZE} fill={SEP_COLOR} />
@@ -793,26 +822,12 @@ function EisenhowerMatrix() {
     );
   }
 
-  // ─── Compute average position ──────────────────────────────────────────
+  // ─── Compute average label ─────────────────────────────────────────────
 
   let avgLabel = "";
   if (showVotes && voterCount > 0) {
-    let sumCol = 0;
-    let sumRow = 0;
-    for (const [, vote] of allVotes) {
-      sumCol += vote.col;
-      sumRow += vote.row;
-    }
-    const avgCol = sumCol / voterCount;
-    const avgRow = sumRow / voterCount;
-
-    // Determine quadrant of average (urgent = right = high col)
-    const isUrgent = avgCol >= GRID_COLS / 2;
-    const isImportant = avgRow < GRID_ROWS / 2;
-    if (isUrgent && isImportant) avgLabel = t(lang, "do");
-    else if (!isUrgent && isImportant) avgLabel = t(lang, "schedule");
-    else if (isUrgent && !isImportant) avgLabel = t(lang, "delegate");
-    else avgLabel = t(lang, "eliminate");
+    const { avgCol, avgRow } = computeVoteAverages(allVotes);
+    avgLabel = t(lang, getQuadrantKey(avgCol, avgRow));
   }
 
   // ─── Main layout ──────────────────────────────────────────────────────
@@ -836,7 +851,7 @@ function EisenhowerMatrix() {
         spacing={6}
         padding={{ vertical: 14, horizontal: 20 }}
         fill="#F9FAFB"
-        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        width={TOTAL_WIDTH}
         horizontalAlignItems="center"
       >
         <Text fontSize={18} fontWeight={800} fill="#1F2937" letterSpacing={0.5}>
@@ -865,19 +880,17 @@ function EisenhowerMatrix() {
         spacing={12}
         padding={{ vertical: 8, horizontal: 20 }}
         fill="#F3F4F6"
-        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        width={TOTAL_WIDTH}
         horizontalAlignItems="center"
         verticalAlignItems="center"
       >
         <AutoLayout
           cornerRadius={10}
           padding={{ vertical: 2, horizontal: 10 }}
-          fill={voterCount > 0 ? "#3B82F6" : "#9CA3AF"}
+          fill={voterCount > 0 ? AXIS_COLORS.notUrgent.hex : AXIS_COLORS.notImportant.hex}
         >
           <Text fontSize={11} fontWeight={700} fill="#FFFFFF">
-            {voterCount > 0
-              ? `${voterCount.toString()} ${voterCount > 1 ? t(lang, "votes") : t(lang, "vote")}`
-              : t(lang, "noVotes")}
+            {formatVoteCount(voterCount, lang)}
           </Text>
         </AutoLayout>
 
@@ -885,7 +898,7 @@ function EisenhowerMatrix() {
           <AutoLayout
             cornerRadius={10}
             padding={{ vertical: 2, horizontal: 10 }}
-            fill="#10B981"
+            fill={AXIS_COLORS.important.hex}
           >
             <Text fontSize={11} fontWeight={700} fill="#FFFFFF">
               {`${t(lang, "result")} : ${avgLabel}`}
@@ -900,13 +913,12 @@ function EisenhowerMatrix() {
         )}
       </AutoLayout>
 
-      {/* Axis labels row: URGENT / PAS URGENT */}
+      {/* Axis labels row */}
       <AutoLayout
         direction="horizontal"
         spacing={0}
-        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        width={TOTAL_WIDTH}
       >
-        {/* Corner spacer */}
         <AutoLayout width={AXIS_LABEL_SIZE} height={AXIS_LABEL_SIZE} fill="#F9FAFB" />
         <AutoLayout
           width={GRID_WIDTH / 2}
@@ -915,7 +927,7 @@ function EisenhowerMatrix() {
           verticalAlignItems="center"
           fill="#F9FAFB"
         >
-          <Text fontSize={10} fontWeight={700} fill="#3B82F6" letterSpacing={1.5}>
+          <Text fontSize={10} fontWeight={700} fill={AXIS_COLORS.notUrgent.hex} letterSpacing={1.5}>
             {t(lang, "notUrgent")}
           </Text>
         </AutoLayout>
@@ -926,17 +938,15 @@ function EisenhowerMatrix() {
           verticalAlignItems="center"
           fill="#F9FAFB"
         >
-          <Text fontSize={10} fontWeight={700} fill="#EF4444" letterSpacing={1.5}>
+          <Text fontSize={10} fontWeight={700} fill={AXIS_COLORS.urgent.hex} letterSpacing={1.5}>
             {t(lang, "urgent")}
           </Text>
         </AutoLayout>
-        {/* Right corner spacer */}
         <AutoLayout width={AXIS_LABEL_SIZE} height={AXIS_LABEL_SIZE} fill="#F9FAFB" />
       </AutoLayout>
 
-      {/* Matrix area: left labels + grid + right spacer */}
-      <AutoLayout direction="horizontal" spacing={0} width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}>
-        {/* Left axis labels */}
+      {/* Matrix area */}
+      <AutoLayout direction="horizontal" spacing={0} width={TOTAL_WIDTH}>
         <AutoLayout
           direction="vertical"
           width={AXIS_LABEL_SIZE}
@@ -953,7 +963,7 @@ function EisenhowerMatrix() {
             <Text
               fontSize={10}
               fontWeight={700}
-              fill="#10B981"
+              fill={AXIS_COLORS.important.hex}
               rotation={-90}
               letterSpacing={1.5}
             >
@@ -969,7 +979,7 @@ function EisenhowerMatrix() {
             <Text
               fontSize={10}
               fontWeight={700}
-              fill="#9CA3AF"
+              fill={AXIS_COLORS.notImportant.hex}
               rotation={-90}
               letterSpacing={1.5}
             >
@@ -978,24 +988,22 @@ function EisenhowerMatrix() {
           </AutoLayout>
         </AutoLayout>
 
-        {/* Grid */}
         <AutoLayout direction="vertical" spacing={0} width="fill-parent">
           {renderGrid()}
         </AutoLayout>
 
-        {/* Right spacer */}
         <AutoLayout width={AXIS_LABEL_SIZE} height={GRID_HEIGHT} fill="#F9FAFB" />
       </AutoLayout>
 
       {/* Footer */}
       <AutoLayout
         direction="horizontal"
-        width={GRID_WIDTH + AXIS_LABEL_SIZE * 2}
+        width={TOTAL_WIDTH}
         padding={{ vertical: 10, horizontal: 20 }}
         fill="#F3F4F6"
         horizontalAlignItems="center"
       >
-        <Text fontSize={11} fill="#9CA3AF">
+        <Text fontSize={11} fill={AXIS_COLORS.notImportant.hex}>
           {t(lang, "clickToVote")}
         </Text>
       </AutoLayout>
