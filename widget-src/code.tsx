@@ -52,6 +52,10 @@ const TRANSLATIONS = {
     average: "Moyenne",
     anonymous: "Anonyme",
     resultFrame: "Résultat",
+    lockVotes: "Verrouiller les votes",
+    unlockVotes: "Déverrouiller les votes",
+    votesLocked: "Votes verrouillés",
+    tooltipLocked: "Les votes sont verrouillés",
   },
   en: {
     title: "Eisenhower Matrix",
@@ -78,6 +82,10 @@ const TRANSLATIONS = {
     average: "Average",
     anonymous: "Anonymous",
     resultFrame: "Result",
+    lockVotes: "Lock votes",
+    unlockVotes: "Unlock votes",
+    votesLocked: "Votes locked",
+    tooltipLocked: "Votes are locked",
   },
   es: {
     title: "Matriz de Eisenhower",
@@ -104,6 +112,10 @@ const TRANSLATIONS = {
     average: "Promedio",
     anonymous: "Anónimo",
     resultFrame: "Resultado",
+    lockVotes: "Bloquear votos",
+    unlockVotes: "Desbloquear votos",
+    votesLocked: "Votos bloqueados",
+    tooltipLocked: "Los votos están bloqueados",
   },
   de: {
     title: "Eisenhower-Matrix",
@@ -130,6 +142,10 @@ const TRANSLATIONS = {
     average: "Durchschnitt",
     anonymous: "Anonym",
     resultFrame: "Ergebnis",
+    lockVotes: "Abstimmung sperren",
+    unlockVotes: "Abstimmung freigeben",
+    votesLocked: "Abstimmung gesperrt",
+    tooltipLocked: "Abstimmung ist gesperrt",
   },
   ja: {
     title: "アイゼンハワー・マトリクス",
@@ -156,6 +172,10 @@ const TRANSLATIONS = {
     average: "平均",
     anonymous: "匿名",
     resultFrame: "結果",
+    lockVotes: "投票をロック",
+    unlockVotes: "投票をアンロック",
+    votesLocked: "投票はロックされています",
+    tooltipLocked: "投票はロックされています",
   },
   pt: {
     title: "Matriz de Eisenhower",
@@ -182,6 +202,10 @@ const TRANSLATIONS = {
     average: "Média",
     anonymous: "Anónimo",
     resultFrame: "Resultado",
+    lockVotes: "Bloquear votos",
+    unlockVotes: "Desbloquear votos",
+    votesLocked: "Votos bloqueados",
+    tooltipLocked: "Os votos estão bloqueados",
   },
 } as const;
 
@@ -209,6 +233,10 @@ const ICON_EYE_OFF = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none
 const ICON_IMAGE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="16" rx="2" stroke="white" stroke-width="1.5" fill="none"/><path d="M2 14l4-4 3 3 4-5 5 6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="7" cy="7" r="1.5" fill="white"/></svg>`;
 
 const ICON_RESET = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 8l-2-2 2-2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 6h12a4 4 0 0 1 0 8H6" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>`;
+
+const ICON_LOCK = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="9" width="12" height="9" rx="2" stroke="white" stroke-width="1.5" fill="none"/><path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="10" cy="13.5" r="1.5" fill="white"/></svg>`;
+
+const ICON_UNLOCK = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="9" width="12" height="9" rx="2" stroke="white" stroke-width="1.5" fill="none"/><path d="M7 9V6a3 3 0 0 1 6 0" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="10" cy="13.5" r="1.5" fill="white"/></svg>`;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -355,6 +383,7 @@ function EisenhowerMatrix() {
   const [showVotes, setShowVotes] = useSyncedState<boolean>("showVotes", false);
   const [topic, setTopic] = useSyncedState<string>("topic", "");
   const [lang, setLang] = useSyncedState<Lang>("lang", "en");
+  const [locked, setLocked] = useSyncedState<boolean>("locked", false);
 
   const allVotes = votesMap.entries();
   const voterCount = allVotes.length;
@@ -383,6 +412,13 @@ function EisenhowerMatrix() {
         icon: showVotes ? ICON_EYE_OFF : ICON_EYE,
       },
       {
+        itemType: "toggle",
+        propertyName: "locked",
+        tooltip: locked ? t(lang, "unlockVotes") : t(lang, "lockVotes"),
+        isToggled: locked,
+        icon: locked ? ICON_LOCK : ICON_UNLOCK,
+      },
+      {
         itemType: "action",
         propertyName: "generateImage",
         tooltip: t(lang, "generateImage"),
@@ -403,6 +439,8 @@ function EisenhowerMatrix() {
         setLang(propertyValue as Lang);
       } else if (propertyName === "showVotes") {
         setShowVotes(!showVotes);
+      } else if (propertyName === "locked") {
+        setLocked(!locked);
       } else if (propertyName === "generateImage") {
         return generateResultImage();
       } else if (propertyName === "resetVotes") {
@@ -738,9 +776,9 @@ function EisenhowerMatrix() {
         fill={CELL_COLORS[row][col]}
         horizontalAlignItems="center"
         verticalAlignItems="center"
-        onClick={() => placeVote(col, row)}
-        hoverStyle={{ opacity: 0.75 }}
-        tooltip={t(lang, "tooltipVote")}
+        onClick={locked ? undefined : () => placeVote(col, row)}
+        hoverStyle={locked ? {} : { opacity: 0.75 }}
+        tooltip={locked ? t(lang, "tooltipLocked") : t(lang, "tooltipVote")}
       >
         {cellVotes.length > 0 && (
           <Frame width={CELL_SIZE} height={CELL_SIZE}>
@@ -1003,8 +1041,8 @@ function EisenhowerMatrix() {
         fill="#F3F4F6"
         horizontalAlignItems="center"
       >
-        <Text fontSize={11} fill={AXIS_COLORS.notImportant.hex}>
-          {t(lang, "clickToVote")}
+        <Text fontSize={11} fill={locked ? AXIS_COLORS.urgent.hex : AXIS_COLORS.notImportant.hex}>
+          {locked ? t(lang, "votesLocked") : t(lang, "clickToVote")}
         </Text>
       </AutoLayout>
     </AutoLayout>
