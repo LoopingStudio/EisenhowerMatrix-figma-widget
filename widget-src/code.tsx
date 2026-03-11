@@ -198,6 +198,16 @@ function t(lang: Lang, key: string): string {
   return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.en[key] || key;
 }
 
+// ─── Icons (11x11 SVG for property menu) ─────────────────────────────────────
+
+const ICON_EYE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 4.5C6 4.5 2.7 7 1 10c1.7 3 5 5.5 9 5.5s7.3-2.5 9-5.5c-1.7-3-5-5.5-9-5.5Z" stroke="white" stroke-width="1.5" fill="none"/><circle cx="10" cy="10" r="2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>`;
+
+const ICON_EYE_OFF = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 4.5C6 4.5 2.7 7 1 10c1.7 3 5 5.5 9 5.5s7.3-2.5 9-5.5c-1.7-3-5-5.5-9-5.5Z" stroke="white" stroke-width="1.5" fill="none"/><circle cx="10" cy="10" r="2.5" stroke="white" stroke-width="1.5" fill="none"/><line x1="3" y1="17" x2="17" y2="3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
+const ICON_IMAGE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="16" rx="2" stroke="white" stroke-width="1.5" fill="none"/><path d="M2 14l4-4 3 3 4-5 5 6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="7" cy="7" r="1.5" fill="white"/></svg>`;
+
+const ICON_RESET = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 8l-2-2 2-2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 6h12a4 4 0 0 1 0 8H6" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>`;
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const GRID_COLS = 12;
@@ -307,11 +317,13 @@ function EisenhowerMatrix() {
         propertyName: "showVotes",
         tooltip: showVotes ? t(lang, "hideVotes") : t(lang, "revealVotes"),
         isToggled: showVotes,
+        icon: showVotes ? ICON_EYE_OFF : ICON_EYE,
       },
       {
         itemType: "action",
         propertyName: "generateImage",
         tooltip: t(lang, "generateImage"),
+        icon: ICON_IMAGE,
       },
       {
         itemType: "separator",
@@ -320,6 +332,7 @@ function EisenhowerMatrix() {
         itemType: "action",
         propertyName: "resetVotes",
         tooltip: t(lang, "resetVotes"),
+        icon: ICON_RESET,
       },
     ],
     ({ propertyName, propertyValue }) => {
